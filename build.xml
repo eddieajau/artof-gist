@@ -1,0 +1,185 @@
+<?xml version="1.0" ?>
+<project
+	name="Builds the ArtofGist installable extension package."
+	basedir="."
+	default="main">
+
+	<property
+		name="package"
+		value="artofgist"
+		override="true" />
+
+	<property
+		name="targetdir"
+		value="."
+		override="true" />
+
+	<!--
+	Usage:
+	1. Standard build
+	$ phing
+	-->
+
+	<!-- MAIN -->
+	<target name="main" description="Creates an extension build file">
+		<!-- Set up the format for the current date -->
+		<tstamp>
+			<format property="TODAY" pattern="%Y-%m-%d %H:%M" />
+		</tstamp>
+		
+		<!-- Pull the version number out of the package manifest -->
+		<loadfile property="package.version" file="${targetdir}/build.version.txt" />
+		<if>
+			<equals arg1="${package.version}" arg2="" />
+			<then>
+				<property name="package.version" value="master" />
+			</then>
+		</if>
+
+		<!-- Cleanup build area -->
+		<delete dir="${targetdir}/package" />
+		<mkdir dir="${targetdir}/package" />
+
+		<!-- Add the content plugin -->
+		<phingcall target="build">
+			<property name="extpath" value="plugins/content/artofgist" />
+			<property name="extname" value="plg_content_artofgist" />
+			<!-- <property name="extsub" value="admin" /> -->
+		</phingcall>
+
+		<!-- Now make the final package -->
+		<delete file="${targetdir}/${package}.${package.version}.zip" />
+		
+		<!-- Copy the manifest, replacing the current date. -->
+		<copy
+			file="${targetdir}/pkg_${package}.xml"
+			tofile="${targetdir}/package/pkg_${package}.xml" overwrite="true">
+			<filterchain>
+				<replaceregexp>
+					<regexp pattern="version&gt;&lt;/version" replace="version&gt;${package.version}&lt;/version" ignoreCase="true"/>
+					<regexp pattern="creationDate&gt;&lt;/creationDate" replace="creationDate&gt;${TODAY}&lt;/creationDate" ignoreCase="true"/>
+				</replaceregexp>
+			</filterchain>
+		</copy>
+
+		<zip
+			destfile="${targetdir}/${package}.${package.version}.zip"
+			basedir="${targetdir}/package">
+			<fileset dir="${targetdir}/package">
+				<include name="*zip" />
+			</fileset>
+			<fileset dir="${targetdir}/package">
+				<include name="pkg_${package}.xml" />
+			</fileset>
+		</zip>
+	</target>
+
+	<target name="build" description="Packages the extension for delivery">
+		<!-- Switch to tell this task to make the zip files. Default is on. -->
+		<if>
+			<not>
+				<isset property="build" />
+			</not>
+			<then>
+				<property name="build" value="1" />
+			</then>
+		</if>
+
+		<!-- The following options are for picking up the right files/folders. -->
+		<if>
+			<not>
+				<isset property="extname" />
+			</not>
+			<then>
+				<property name="extname" value="" />
+			</then>
+		</if>
+		
+		<if>
+			<not>
+				<isset property="extsub" />
+			</not>
+			<then>
+				<property name="extsub" value="" />
+			</then>
+		</if>
+
+		<if>
+			<not>
+				<isset property="extfile" />
+			</not>
+			<then>
+				<property name="extfile" value="" />
+			</then>
+		</if>
+
+		<!-- Check if the target folder exists. If not, create it -->
+		<if>
+			<not>
+				<available file="${targetdir}/package/${extname}/${extsub}" type="dir" />
+			</not>
+			<then>
+				<mkdir dir="${targetdir}/package/${extname}/${extsub}" />
+			</then>
+		</if>
+
+		<!-- Copy the source files to the target folder -->
+		<copy todir="${targetdir}/package/${extname}/${extsub}${extfile}">
+			<fileset dir="${extpath}">
+				<include name="**" />
+				<exclude name=".*" />
+			</fileset>
+			<filterchain>
+				<!-- Replace the verison and createdDate tags to agree with the package. -->
+				<replaceregexp>
+					<regexp pattern="version&gt;{{VERSION}}&lt;/version" 
+						replace="version&gt;${package.version}&lt;/version" ignoreCase="true"/>
+					<regexp pattern="creationDate&gt;{{CREATIONDATE}}&lt;/creationDate" 
+						replace="creationDate&gt;${TODAY}&lt;/creationDate" ignoreCase="true"/>
+				</replaceregexp>
+			</filterchain>
+		</copy>
+
+		<!-- Special case for components. Put the XML file in the correct place -->
+		<if>
+			<and>
+				<not><equals arg1="${extsub}" arg2="" /></not>
+				<available file="${targetdir}/package/${extname}/${extsub}/${package}.xml" type="file" />
+			</and>
+			<then>
+				<copy
+					file="${targetdir}/package/${extname}/${extsub}/${package}.xml"
+					tofile="${targetdir}/package/${extname}/${package}.xml" overwrite="true" />
+				<delete
+					file="${targetdir}/package/${extname}/${extsub}/${package}.xml" />
+			</then>
+		</if>
+
+		<if>
+			<available file="${targetdir}/package/${extname}/${extsub}/installer.php" type="file" />
+			<then>
+				<copy
+					file="${targetdir}/package/${extname}/${extsub}/installer.php"
+					tofile="${targetdir}/package/${extname}/installer.php" overwrite="true" />
+			</then>
+		</if>
+
+		<if>
+			<equals arg1="${build}" arg2="1" />
+			<then>
+				<delete file="${targetdir}/package/${extname}.zip" />
+		
+				<zip
+					destfile="${targetdir}/package/${extname}.zip"
+					basedir="${targetdir}/package/${extname}">
+					<fileset dir="${targetdir}/package/${extname}">
+						<include name="**" />
+						<exclude name=".*" />
+					</fileset>
+				</zip>
+			</then>
+		</if>
+		
+	</target>
+
+</project>
